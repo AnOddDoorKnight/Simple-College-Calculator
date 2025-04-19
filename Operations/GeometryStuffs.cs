@@ -58,33 +58,53 @@ public sealed class AreaOfRectangle : IOperation
 
 public sealed class AreaOfCircle : IOperation
 {
-	public string MakeAsciiArt(float? A, float? B) =>
+	public string MakeAsciiArt(float? A) =>
 $@"
-	  {(A is null ? "__" : A)}
-	* {(B is null ? "__" : B)}
-	─────
-	{((A is null || B is null) ? "" : A * B)}
+	     ***
+	  **     **
+	 *         *
+	*           *
+	*     ● {(A is null ? "__" : A.Value.ToString("N3"))} *
+	*           *
+	 *         *
+	  **     **
+	     ***
+	{((A is null) ? "__" : A * MathF.PI)}
 ";
 	public float Execute(Calculator parentCalculator, float? firstInput)
 	{
-		UserInterface.Instance!.AsciiView = MakeAsciiArt(null, null); UserInterface.Instance.Reprint();
-		float A = firstInput ?? IOperation.DefineValueByUser();
-		UserInterface.Instance!.AsciiView = MakeAsciiArt(A, null); UserInterface.Instance.Reprint();
-		float B = IOperation.DefineValueByUser();
-		UserInterface.Instance!.AsciiView = MakeAsciiArt(A, B); UserInterface.Instance.Reprint();
-		return A * B;
+		UserInterface.Instance!.AsciiView = MakeAsciiArt(null); UserInterface.Instance.Reprint();
+		float radius = firstInput ?? IOperation.DefineValueByUser();
+		UserInterface.Instance!.AsciiView = MakeAsciiArt(radius); UserInterface.Instance.Reprint();
+		return radius * MathF.PI;
 	}
 }
 
+// A^2 + B^2 = C^2
 public sealed class TriangleTheroem : IOperation
 {
-	public string MakeAsciiArt(float? A, float? B) =>
-$@"
-	  {(A is null ? "__" : A)}
-	* {(B is null ? "__" : B)}
-	─────
-	{((A is null || B is null) ? "" : A * B)}
+	public static float CalculateHypotenuse(float A, float B)
+		=> MathF.Sqrt(MathF.Pow(A, 2) + MathF.Pow(B, 2));
+	public string MakeAsciiArt(float? A, float? B)
+	{
+		string AStr = A is null ? "__" : A.Value.ToString(),
+			BStr = B is null ? "__" : B.Value.ToString(),
+			CStr = (A is null || B is null) ? "" : CalculateHypotenuse(A.Value, B.Value).ToString();
+		return $@"
+	{AddSpacing(CStr)}       /|
+	{AddSpacing(CStr)}      / |
+	{AddSpacing(CStr)}     /  |
+	{            CStr}    /   | {AStr}
+	{AddSpacing(CStr)}   /    |
+	{AddSpacing(CStr)}  /     |
+	{AddSpacing(CStr)} /      |
+	{AddSpacing(CStr)}/_______|
+	  {BStr}
+	
 ";
+	}
+
+	internal string AddSpacing(string resultText) => string.Join("", Enumerable.Repeat(' ', resultText.Length));
 	public float Execute(Calculator parentCalculator, float? firstInput)
 	{
 		UserInterface.Instance!.AsciiView = MakeAsciiArt(null, null); UserInterface.Instance.Reprint();
