@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Authors>AnOddDoorKnight</Authors>
+    <Title>OVS Simple College Calculator</Title>
+    <RootNamespace>OVS.SimpleCollegeCalculator</RootNamespace>
+    <AssemblyName>OVSSimpleCollegeCalculator</AssemblyName>
+    <StartupObject></StartupObject>
+  </PropertyGroup>
+
+</Project>
