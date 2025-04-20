@@ -60,11 +60,12 @@ public sealed class AreaOfCircle : IOperation
 {
 	public string MakeAsciiArt(float? A) =>
 $@"
+	{(A is null ? "__" : A.Value.ToString("N3"))}
 	     ***
 	  **     **
 	 *         *
 	*           *
-	*     ● {(A is null ? "__" : A.Value.ToString("N3"))} *
+	*     ●     * 
 	*           *
 	 *         *
 	  **     **
@@ -99,7 +100,7 @@ public sealed class TriangleTheroem : IOperation
 	{AddSpacing(CStr)}  /     |
 	{AddSpacing(CStr)} /      |
 	{AddSpacing(CStr)}/_______|
-	  {BStr}
+	  {AddSpacing(CStr)}{BStr}
 	
 ";
 	}
