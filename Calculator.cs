@@ -186,8 +186,6 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	using System.Text;
 	using System.Threading.Tasks;
 
-	/* OPERATORS ------------------------------------------------------- */
-
 	public interface IOperation
 	{
 		public static float DefineValueByUser()
@@ -224,7 +222,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			Type[] enumerator = leftOverTypes.ToArray(); // would be ienumerator, but it didnt reset to 0.
 			for (int i = 0; i < enumerator.Length; i++)
 			{
-				if (this.Any(op => op.GetType() == enumerator[i]))
+				if (this.Any(operation => operation.GetType() == enumerator[i]))
 				{
 					continue;
 				}
@@ -307,7 +305,9 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			return A * B;
 		}
 	}
-
+	/// <summary>
+	/// Resets memory in the menu as an operation
+	/// </summary>
 	public sealed class ResetMemory : IOperation
 	{
 		string IOperation.Name => "Reset Memory";
@@ -322,6 +322,9 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			return float.NaN;
 		}
 	}
+	/// <summary>
+	/// Quick quit.
+	/// </summary>
 	public sealed class Quit : IOperation
 	{
 		public float Execute(Calculator parentCalculator, float? firstInput)
@@ -331,16 +334,32 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		}
 	}
 
+	/// <summary>
+	/// Divides and visualizes the division of one number by another.
+	/// </summary>
 	public sealed class Divide : IOperation
 	{
 		string IOperation.Name => "Division";
-		public string MakeAsciiArt(float? A, float? B) =>
-	$@"
-	  {(A is null ? "__" : A)}
-	/ {(B is null ? "__" : B)}
-	─────
-	{((A is null || B is null) ? "" : A / B)}
+		/// <summary>
+		/// Returns a <see langword="string"/> designed for being print out by 
+		/// <see cref="UserInterface"/>. Visualizes as a long division problem.
+		/// </summary>
+		/// <param name="numerator">The Numerator</param>
+		/// <param name="denominator">The Denominator</param>
+		/// <returns></returns>
+		public static string MakeAsciiArt(float? numerator, float? denominator)
+		{
+			string StrA = numerator is null ? "__" : numerator.ToString()!,
+				StrB = denominator is null ? "__" : denominator.ToString()!,
+				StrC = (numerator is null || denominator is null) ? "" : (numerator.Value / denominator.Value).ToString();
+			return $@"
+	{AddInitialLength()}   {StrC}
+	{AddInitialLength()} _{string.Join("", Enumerable.Repeat('_', Math.Max(StrA.Length, StrC.Length)))}
+	{StrB}/{StrA}
 ";
+			string AddInitialLength() => string.Join("", Enumerable.Repeat(' ', StrB.Length));
+		}
+
 
 		public float Execute(Calculator parentCalculator, float? firstInput)
 		{
@@ -361,6 +380,10 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			return A / B;
 		}
 
+		/// <summary>
+		/// Implements custom graphics sort of like the screen glitching whenever
+		/// the user tries to divide by 0 for any reason. Calls <see cref="Environment.Exit(int)"/>
+		/// </summary>
 		public void ThrowDivideByZeroError()
 		{
 			const int horizontal = 100, vertical = 30;
@@ -379,8 +402,8 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			}
 			StringBuilder modifiableView = new(string.Join("\n", view));
 			Stopwatch stopwatch = Stopwatch.StartNew(); 
-			long stopAt = (long)TimeSpan.FromSeconds(5).TotalMilliseconds;
-			Range<double> range = new(0f, 5f);
+			long stopAt = (long)TimeSpan.FromSeconds(5D).TotalMilliseconds;
+			Range<double> range = new(0F, 5F);
 			for (int modify = 1; stopwatch.ElapsedMilliseconds < stopAt; modify++)
 			{
 				Console.Clear();
@@ -395,7 +418,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 					modifiableView.Insert(randomIndex, allJunkChars[Random.Shared.Next(allJunkChars.Length)]);
 				}
 				Console.Write(modifiableView.ToString());
-				double waitDelay = 120d - Math.Pow(1d, 1d + (range.ToNormalize(stopwatch.Elapsed.TotalSeconds) * 1000d));
+				double waitDelay = 120D - Math.Pow(1D, 1D + (range.ToNormalize(stopwatch.Elapsed.TotalSeconds) * 1000D));
 				Task.Delay((int)waitDelay).Wait();
 			}
 			Environment.Exit(0);
