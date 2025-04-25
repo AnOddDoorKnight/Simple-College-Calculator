@@ -1,4 +1,4 @@
-﻿// Week 3 - Calculator Assignment
+﻿// Week 4 - Calculator Assignment
 // Name: AnOddDoorKnight
 // Submission Date: 20-Apr-2025
 // Description: A simple console calculator supporting basic operations and memory
@@ -18,7 +18,7 @@ namespace OVS.SimpleCollegeCalculator
 
 		public static void Main(string[] args)
 		{
-			Console.Title = "A Very Cool Calculator - By AnOddDoorKnight";
+			Console.Title = "AnOddDoorkKnight's OVSCalculator";
 			CalculatorInstance = new Calculator();
 			Exception? ex = CalculatorInstance.Run();
 			if (ex != null)
@@ -142,8 +142,7 @@ namespace OVS.SimpleCollegeCalculator
 		public static string ReadUserInputLine(string initialResponse, params Func<string, bool>[] conditions)
 		{
 			string input;
-			UserInterface.Instance!.InputView = initialResponse;
-			UserInterface.Instance.Reprint();
+			PrintCondition(initialResponse, false);
 			while (true)
 			{
 				input = Console.ReadLine() ?? string.Empty;
@@ -151,16 +150,14 @@ namespace OVS.SimpleCollegeCalculator
 				{
 					break;
 				}
-				UserInterface.Instance.InputView = $"Invalid Response, try again.\n{initialResponse}";
-				UserInterface.Instance.Reprint();
+				PrintCondition(initialResponse, true);
 			}
 			return input;
 		}
 		public static char ReadUserInputKey(string initialResponse, params Func<ConsoleKeyInfo, bool>[] conditions)
 		{
 			ConsoleKeyInfo info;
-			UserInterface.Instance!.InputView = initialResponse;
-			UserInterface.Instance.Reprint();
+			PrintCondition(initialResponse, false);
 			while (true)
 			{
 				info = Console.ReadKey();
@@ -168,10 +165,15 @@ namespace OVS.SimpleCollegeCalculator
 				{
 					break;
 				}
-				UserInterface.Instance.InputView = $"Invalid Response, try again.\n{initialResponse}";
-				UserInterface.Instance.Reprint();
+				PrintCondition(initialResponse, true);
 			}
 			return info.KeyChar;
+		}
+		public static void PrintCondition(string initialResponse, bool retry)
+		{
+			UserInterface.Instance!.InputView = !retry ? initialResponse
+				: $"Invalid Response, try again.\n{initialResponse}";
+			UserInterface.Instance.Reprint();
 		}
 	}
 }
@@ -219,14 +221,21 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			IEnumerable<Type> leftOverTypes = AppDomain.CurrentDomain.GetAssemblies()
 			.SelectMany(assembly => assembly.GetTypes()
 				.Where(obj => typeof(IOperation).IsAssignableFrom(obj) && obj != typeof(IOperation)));
-			Type[] enumerator = leftOverTypes.ToArray(); // would be ienumerator, but it didnt reset to 0.
-			for (int i = 0; i < enumerator.Length; i++)
+			using IEnumerator<Type> types = leftOverTypes.GetEnumerator();
+			while (types.MoveNext())
 			{
-				if (this.Any(operation => operation.GetType() == enumerator[i]))
+				if (this.Any(operation => operation.GetType() == types.Current))
 				{
 					continue;
 				}
-				Add((IOperation)Activator.CreateInstance(enumerator[i])!);
+				Add((IOperation)Activator.CreateInstance(types.Current)!);
+			}
+
+			Type[] enumerator = leftOverTypes.ToArray(); // would be ienumerator, but it didnt reset to 0.
+
+			for (int i = 0; i < enumerator.Length; i++)
+			{
+				
 			}
 		}
 
@@ -476,7 +485,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			UserInterface.Instance!.AsciiView = MakeAsciiArt(A, null); 
 			UserInterface.Instance.Reprint();
 			float B = IOperation.DefineValueByUser();
-			UserInterface.Instance!.AsciiView = MakeAsciiArt(A, B); 
+			UserInterface.Instance!.AsciiView = $"{A} * {B} = {A * B}\n" + MakeAsciiArt(A, B); 
 			UserInterface.Instance.Reprint();
 			return A * B;
 		}
@@ -498,14 +507,14 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	 *         *
 	  **     **
 	     ***
-	{((A is null) ? "__" : CalcAnswer(A.Value))}
+	{((A is null) ? "__" : CalcAnswer(A.Value))} x^2
 ";
 		public float Execute(Calculator parentCalculator, float? firstInput)
 		{
 			UserInterface.Instance!.AsciiView = MakeAsciiArt(null); 
 			UserInterface.Instance.Reprint();
 			float radius = firstInput ?? IOperation.DefineValueByUser();
-			UserInterface.Instance!.AsciiView = MakeAsciiArt(radius); 
+			UserInterface.Instance!.AsciiView = $"{radius}^2 * Pi = {CalcAnswer(radius)}\n" + MakeAsciiArt(radius); 
 			UserInterface.Instance.Reprint();
 			return CalcAnswer(radius);
 		}
@@ -548,7 +557,9 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			UserInterface.Instance!.AsciiView = MakeAsciiArt(A, null); 
 			UserInterface.Instance.Reprint();
 			float B = IOperation.DefineValueByUser();
-			UserInterface.Instance!.AsciiView = MakeAsciiArt(A, B); 
+			UserInterface.Instance!.AsciiView = 
+				$"√({A}^2 + {B}^2)=√({A * A} + {B * B})=√({(A * A) + (B * B)})={CalculateHypotenuse(A, B)}\n" + 
+				MakeAsciiArt(A, B); 
 			UserInterface.Instance.Reprint();
 			return CalculateHypotenuse(A, B);
 		}
