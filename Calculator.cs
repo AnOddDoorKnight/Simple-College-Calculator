@@ -1,4 +1,4 @@
-﻿// Week 4 - Calculator Assignment
+﻿// Week 5 - Calculator Assignment
 // Name: AnOddDoorKnight
 // Submission Date: 20-Apr-2025
 // Description: A simple console calculator supporting basic operations and memory
@@ -6,6 +6,7 @@
 namespace OVS.SimpleCollegeCalculator
 {
 	using HDAdvance.Mathematics;
+	using OVS.SimpleCollegeCalculator.Menus;
 	using OVS.SimpleCollegeCalculator.Operators;
 	using System;
 	using System.Collections.Generic;
@@ -31,13 +32,38 @@ namespace OVS.SimpleCollegeCalculator
 
 		/* --------------------------------------------------------------- */
 
-		public OperationList OperationList { get; set; }
+		public Submenu MainMenu { get; set; }
 		public UserInterface UserInterface { get; set; }
 		public Memory Memory { get; set; }
 
 		public Calculator()
 		{
-			OperationList = new();
+			MainMenu = new Submenu("Main Menu")
+			{
+				interactibles = [
+					new Submenu("Basic Math Functions") { interactibles = [
+						IInteractible.ToIInteractible(new Add()),
+						IInteractible.ToIInteractible(new Substract()),
+						IInteractible.ToIInteractible(new Multiply()),
+						IInteractible.ToIInteractible(new Divide()),
+						new BackInteract(),
+					]},
+					new Submenu("Area Functions") { interactibles = [
+						IInteractible.ToIInteractible(new AreaOfCircle()),
+						IInteractible.ToIInteractible(new AreaOfRectangle()),
+						new BackInteract(),
+					]},
+					new Submenu("Volume Functions") { interactibles = [
+						new BackInteract(),
+					]},
+					new Submenu("Trig Functions") { interactibles = [
+						IInteractible.ToIInteractible(new TriangleTheroem()),
+						new BackInteract(),
+					]},
+					IInteractible.ToIInteractible(new ResetMemory()),
+					IInteractible.ToIInteractible(new Quit()),
+				],
+			};
 			UserInterface = new(this);
 			Memory = new();
 		}
@@ -48,14 +74,7 @@ namespace OVS.SimpleCollegeCalculator
 			{
 				while (true) // it will be broken by environment exit
 				{
-					UserInterface.Start();
-					// Error handling
-					int choice = int.Parse(InputUtility.ReadUserInputKey("Select a key: ",
-						info => char.IsDigit(info.KeyChar)
-						&& OperationList.GetRangeFromCollection().InRangeInclusive(int.Parse(info.KeyChar.ToString()) - 1)).ToString());
-					float savedFloat = OperationList[choice - 1].Execute(this, Memory.Value);
-					if (!float.IsNaN(savedFloat))
-						Memory.CheckUserForInterfaceInteraction(savedFloat);
+					MainMenu.EnterWithoutAnnouncing();
 				}
 			}
 			catch (Exception ex) when (ex.Message == "Quit")
@@ -111,12 +130,6 @@ namespace OVS.SimpleCollegeCalculator
 		{
 			this.calculator = calculator;
 			Instance = this;
-		}
-
-		public void Start()
-		{
-			AsciiView = calculator.OperationList.ToString();
-			Reprint();
 		}
 
 		public void Reprint()
@@ -178,9 +191,108 @@ namespace OVS.SimpleCollegeCalculator
 	}
 }
 
+namespace OVS.SimpleCollegeCalculator.Menus
+{
+	using HDAdvance.Mathematics;
+	using OVS.SimpleCollegeCalculator.Operators;
+	using System;
+	using System.Collections.Generic;
+	using System.Text;
+
+	public class Submenu(string Name) : IInteractible
+	{
+		string IInteractible.Name => Name;
+		public IReadOnlyList<IInteractible> interactibles = Array.Empty<IInteractible>();
+		public void Enter()
+		{
+			int hash = Random.Shared.Next(int.MinValue, int.MaxValue);
+			UserInterface.Instance!.Conditions.Add(hash, $"Submenu: {Name}");
+			EnterWithoutAnnouncing();
+			UserInterface.Instance!.Conditions.Remove(hash);
+		}
+		public ReturnType Invoke(Calculator pairedCalculator, out object output)
+		{
+			Enter();
+			output = default;
+			return ReturnType.Continue;
+		}
+		public void EnterWithoutAnnouncing()
+		{
+			Range<int> range = interactibles.GetRangeFromCollection();
+			UserInterface.Instance!.AsciiView = ToInteractiblesString();
+			UserInterface.Instance!.Reprint();
+			// Error handling
+			int choice = int.Parse(InputUtility.ReadUserInputKey("Select a key: ",
+				info => char.IsDigit(info.KeyChar)
+				&& range.InRangeInclusive(int.Parse(info.KeyChar.ToString()) - 1)).ToString());
+			switch (interactibles[choice - 1].Invoke(Calculator.CalculatorInstance!, out object output))
+			{
+				default:
+				case ReturnType.Continue:
+				{
+
+				}
+				break;
+				case ReturnType.Operation:
+				{
+					float savedFloat = (float)output;
+					if (!float.IsNaN(savedFloat))
+						Calculator.CalculatorInstance!.Memory.CheckUserForInterfaceInteraction(savedFloat);
+				}
+				break;
+			}
+		}
+
+
+		public string ToInteractiblesString()
+		{
+			StringBuilder @out = new();
+			for (int i = 0; i < interactibles.Count; i++)
+			{
+				@out.AppendLine($"{i + 1}) {interactibles[i].Name}");
+			}
+			return @out.ToString();
+		}
+	}
+
+	public class BackInteract : IInteractible
+	{
+		public string Name => "Back";
+
+		public ReturnType Invoke(Calculator pairedCalculator, out object output)
+		{
+			output = default;
+			return ReturnType.Continue;
+		}
+	}
+
+	public interface IInteractible
+	{
+		private readonly record struct FlexibleInteractible(IOperation Operatioin) : IInteractible
+		{
+			public string Name => Operatioin.Name;
+			public readonly ReturnType Invoke(Calculator pairedCalculator, out object output)
+			{
+				output = Operatioin.Execute(pairedCalculator, pairedCalculator.Memory.Value);
+				return ReturnType.Operation;
+			}
+		}
+		public static IInteractible ToIInteractible(IOperation operation)
+			=> new FlexibleInteractible(operation);
+		ReturnType Invoke(Calculator pairedCalculator, out object output);
+		string Name { get; }
+	}
+	public enum ReturnType : byte
+	{
+		Continue,
+		Operation
+	}
+}
+
 namespace OVS.SimpleCollegeCalculator.Operators
 {
 	using HDAdvance.Mathematics;
+	using OVS.SimpleCollegeCalculator.Menus;
 	using System;
 	using System.Collections.Generic;
 	using System.Diagnostics;
@@ -198,51 +310,6 @@ namespace OVS.SimpleCollegeCalculator.Operators
 
 		string Name => this.GetType().Name;
 		float Execute(Calculator parentCalculator, float? firstInput);
-	}
-
-	public sealed class OperationList : List<IOperation>
-	{
-		public static OperationList Instance { get; } = new();
-
-		public OperationList()
-		{
-			// CurrentList
-			this.AddRange(
-			[
-				new Add(),
-				new Substract(),
-				new Multiply(),
-				new Divide(),
-				new AreaOfRectangle(),
-				new AreaOfCircle(),
-				new TriangleTheroem(),
-			]);
-			// Select anything thats missing
-			IEnumerable<Type> leftOverTypes = AppDomain.CurrentDomain.GetAssemblies()
-			.SelectMany(assembly => assembly.GetTypes()
-				.Where(obj => typeof(IOperation).IsAssignableFrom(obj) && obj != typeof(IOperation)));
-			using IEnumerator<Type> types = leftOverTypes.GetEnumerator();
-			while (types.MoveNext())
-			{
-				if (this.Any(operation => operation.GetType() == types.Current))
-				{
-					continue;
-				}
-				Add((IOperation)Activator.CreateInstance(types.Current)!);
-			}
-
-			Type[] enumerator = leftOverTypes.ToArray(); // would be ienumerator, but it didnt reset to 0.
-
-			for (int i = 0; i < enumerator.Length; i++)
-			{
-				
-			}
-		}
-
-		public override string ToString()
-		{
-			return string.Join("\n", this.Select((e, i) => $"{i + 1}) {e.Name}"));
-		}
 	}
 
 	public sealed class Add : IOperation
