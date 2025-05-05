@@ -21,7 +21,7 @@ namespace OVS.SimpleCollegeCalculator
 	{
 		public static Calculator? CalculatorInstance { get; set; }
 
-		public static void Main(string[] args)
+		public static void Main()
 		{
 			Console.Title = "AnOddDoorkKnight's OVSCalculator";
 			CalculatorInstance = new Calculator();
@@ -30,8 +30,8 @@ namespace OVS.SimpleCollegeCalculator
 			{
 				Console.Clear();
 				Console.WriteLine($"An Error has occured:\n{ex}");
+				Console.ReadKey();
 			}
-			Console.ReadKey();
 		}
 
 		/* --------------------------------------------------------------- */
@@ -64,14 +64,14 @@ namespace OVS.SimpleCollegeCalculator
 						new BackInteract(),
 					]},
 					new Submenu("Trig Functions") { interactibles = [
-						IInteractible.ToIInteractible(new TriangleTheorem()),
+						new TriangleTheoremSet(),
 						new BackInteract(),
 					]},
 					IInteractible.ToIInteractible(new ResetMemory()),
 					IInteractible.ToIInteractible(new Quit()),
 				],
 			};
-			UserInterface = new(this);
+			UserInterface = new();
 			Memory = new();
 		}
 
@@ -84,7 +84,8 @@ namespace OVS.SimpleCollegeCalculator
 					MainMenu.EnterWithoutAnnouncing();
 				}
 			}
-			catch (Exception ex) when (ex.Message == "Quit")
+			// Messy, but works
+			catch (Exception ex) when (ex.Message == Quit.QUIT_KEY)
 			{
 				return null;
 			}
@@ -156,18 +157,15 @@ namespace OVS.SimpleCollegeCalculator
 		/// provided. Can use hashcodes to differentiate and easily grab and modify
 		/// the desired condition.
 		/// </summary>
-		public Dictionary<int, string> Conditions = new();
-
-		private Calculator calculator;
+		public Dictionary<int, string> Conditions = [];
 
 		/// <summary>
 		/// The actual view of the console, after its done reprinting.
 		/// </summary>
 		public string ConsoleView { get; private set; } = string.Empty;
 
-		public UserInterface(Calculator calculator)
+		public UserInterface()
 		{
-			this.calculator = calculator;
 			Instance = this;
 		}
 
@@ -269,7 +267,8 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	public class Submenu(string Name) : IInteractible
 	{
 		string IInteractible.Name => Name;
-		public IReadOnlyList<IInteractible> interactibles = Array.Empty<IInteractible>();
+		public bool Repeat { get; } = true;
+		public IReadOnlyList<IInteractible> interactibles = [];
 		/// <summary>
 		/// Similar to <see cref="Enter"/>, but stores its submenu as a 
 		/// <see cref="UserInterface.Conditions"/> for user clarity
@@ -281,11 +280,11 @@ namespace OVS.SimpleCollegeCalculator.Menus
 			EnterWithoutAnnouncing();
 			UserInterface.Instance!.Conditions.Remove(hash);
 		}
-		ReturnType IInteractible.Invoke(Calculator pairedCalculator, out object output)
+		// for main loop specific interaction.
+		object? IInteractible.Invoke()
 		{
 			Enter();
-			output = default;
-			return ReturnType.Continue;
+			return null;
 		}
 		/// <summary>
 		/// Prints the list to <see cref="UserInterface.AsciiView"/>, and tries
@@ -300,21 +299,13 @@ namespace OVS.SimpleCollegeCalculator.Menus
 			int choice = int.Parse(InputUtility.ReadUserInputKey("Select a key: ",
 				info => char.IsDigit(info.KeyChar)
 				&& range.InRangeInclusive(int.Parse(info.KeyChar.ToString()) - 1)).ToString());
-			switch (interactibles[choice - 1].Invoke(Calculator.CalculatorInstance!, out object output))
+			object? @out = interactibles[choice - 1].Invoke();
+			Type type = @out?.GetType() ?? typeof(object);
+			if (type == typeof(float))
 			{
-				default:
-				case ReturnType.Continue:
-				{
-
-				}
-				break;
-				case ReturnType.Operation:
-				{
-					float savedFloat = (float)output;
-					if (!float.IsNaN(savedFloat))
-						Calculator.CalculatorInstance!.Memory.CheckUserForInterfaceInteraction(savedFloat);
-				}
-				break;
+				float savedFloat = (float)@out!;
+				if (!float.IsNaN(savedFloat))
+					Calculator.CalculatorInstance!.Memory.CheckUserForInterfaceInteraction(savedFloat);
 			}
 		}
 
@@ -341,11 +332,7 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	{
 		public string Name => "Back";
 
-		public ReturnType Invoke(Calculator pairedCalculator, out object output)
-		{
-			output = default;
-			return ReturnType.Continue;
-		}
+		public object? Invoke() => null;
 	}
 
 	/// <summary>
@@ -354,18 +341,27 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	/// </summary>
 	public interface IInteractible
 	{
-		private readonly record struct FlexibleInteractible(IOperation Operatioin) : IInteractible
+		private readonly record struct FlexibleInteractible : IInteractible
 		{
-			public string Name => Operatioin.Name;
-			public readonly ReturnType Invoke(Calculator pairedCalculator, out object output)
+			public FlexibleInteractible(IOperation operation)
 			{
-				output = Operatioin.Execute(pairedCalculator, pairedCalculator.Memory.Value);
-				return ReturnType.Operation;
+				Name = operation.Name;
+				activateDel = () => operation.Execute(Calculator.CalculatorInstance!, Calculator.CalculatorInstance!.Memory.Value);
 			}
+			public FlexibleInteractible(string name, Func<object?> @delegate)
+			{
+				Name = name;
+				activateDel = @delegate;
+			}
+			private readonly Func<object?> activateDel;
+			public string Name { get; }
+			public readonly object? Invoke() => activateDel.Invoke();
 		}
 		public static IInteractible ToIInteractible(IOperation operation)
 			=> new FlexibleInteractible(operation);
-		ReturnType Invoke(Calculator pairedCalculator, out object output);
+		public static IInteractible ToIInteractible(string name, Func<object?> operation)
+			=> new FlexibleInteractible(name, operation);
+		object? Invoke();
 		string Name { get; }
 	}
 	/// <summary>
@@ -423,10 +419,11 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	/// <summary>
 	/// Adds 2 variables into one variable.
 	/// </summary>
+	#region Basic
 	public sealed class Add : IOperation
 	{
 		string IOperation.Name => "Addition";
-		public string MakeAsciiArt(float? A, float? B) =>
+		public static string MakeAsciiArt(float? A, float? B) =>
 	$@"
 	  {(A is null ? "__" : A)}
 	+ {(B is null ? "__" : B)}
@@ -452,7 +449,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	public sealed class Substract : IOperation
 	{
 		string IOperation.Name => "Subtraction";
-		public string MakeAsciiArt(float? A, float? B) =>
+		public static string MakeAsciiArt(float? A, float? B) =>
 	$@"
 	  {(A is null ? "__" : A)}
 	- {(B is null ? "__" : B)}
@@ -478,7 +475,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	public sealed class Multiply : IOperation
 	{
 		string IOperation.Name => "Multiplication";
-		public string MakeAsciiArt(float? A, float? B) =>
+		public static string MakeAsciiArt(float? A, float? B) =>
 	$@"
 	  {(A is null ? "__" : A)}
 	* {(B is null ? "__" : B)}
@@ -521,10 +518,10 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	/// </summary>
 	public sealed class Quit : IOperation
 	{
+		public const string QUIT_KEY = "Environment Exited.";
 		public float Execute(Calculator parentCalculator, float? firstInput)
 		{
-			Environment.Exit(0);
-			throw new Exception();
+			throw new Exception(QUIT_KEY);
 		}
 	}
 
@@ -578,7 +575,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		/// Implements custom graphics sort of like the screen glitching whenever
 		/// the user tries to divide by 0 for any reason. Calls <see cref="Environment.Exit(int)"/>
 		/// </summary>
-		public void ThrowDivideByZeroError()
+		public static void ThrowDivideByZeroError()
 		{
 			const int horizontal = 100, vertical = 30;
 			char[] allJunkChars = ['@', '#', '%', '&'];
@@ -621,6 +618,8 @@ namespace OVS.SimpleCollegeCalculator.Operators
 				$"{text ?? ""}{string.Join("", Enumerable.Repeat(' ', horizontal - (text?.Length ?? 0)))}";
 		}
 	}
+	#endregion
+	#region Volume
 
 	/// <summary>
 	/// Grabs the area of a rectangle by 'A length * B length'.
@@ -634,7 +633,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		/// <param name="A"></param>
 		/// <param name="B"></param>
 		/// <returns>The resulting string to print.</returns>
-		public string MakeAsciiArt(float? A, float? B)
+		public static string MakeAsciiArt(float? A, float? B)
 		{
 			int X = FindVisualLength(A, 1.3f), Y = FindVisualLength(B, 2.0f);
 			string answer = (A is null || B is null) ? "" : (A! * B!).ToString()!;
@@ -690,7 +689,7 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	public sealed class AreaOfCircle : IOperation
 	{
 		string IOperation.Name => "Area Of Circle";
-		public string MakeAsciiArt(float? A) =>
+		public static string MakeAsciiArt(float? A) =>
 	$@"
 	radius: {(A is null ? "__" : A)}
 	     ***
@@ -717,50 +716,89 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		public static float CalcAnswer(float radius) =>
 			radius * radius * MathF.PI;
 	}
-	
-	/// <summary>
-	/// Calculates the hypotenuse of the two sides of a triangle. 'A^2 * B^2 = C^2'
-	/// </summary>
-	public sealed class TriangleTheorem : IOperation
+	#endregion
+	#region Trig
+
+
+	public sealed class TriangleTheoremSet : Submenu
 	{
-		string IOperation.Name => "Calculate Phythagoreans Theorem";
-		public static float CalculateHypotenuse(float A, float B)
-			=> MathF.Sqrt(MathF.Pow(A, 2) + MathF.Pow(B, 2));
-		public string MakeAsciiArt(float? A, float? B)
+		public TriangleTheoremSet() : base("Calculate Triangle Theorem")
 		{
-			string AStr = A is null ? "__" : A.Value.ToString(),
-				BStr = B is null ? "__" : B.Value.ToString(),
-				CStr = (A is null || B is null) ? "" : CalculateHypotenuse(A.Value, B.Value).ToString();
-			return $@"
-	{AddSpacing(CStr)}       /|
-	{AddSpacing(CStr)}      / |
-	{AddSpacing(CStr)}     /  |
-	{CStr}    /   | {AStr}
-	{AddSpacing(CStr)}   /    |
-	{AddSpacing(CStr)}  /     |
-	{AddSpacing(CStr)} /      |
-	{AddSpacing(CStr)}/_______|
-	  {AddSpacing(CStr)}{BStr}
-	
-";
+			interactibles = 
+			[
+				IInteractible.ToIInteractible("Calculate Hypotenuse", CalcHypo),
+				IInteractible.ToIInteractible("Calculate Side A", CalcA),
+				IInteractible.ToIInteractible("Calculate Side B", CalcB),
+			];
 		}
 
-		internal string AddSpacing(string resultText) => string.Join("", Enumerable.Repeat(' ', resultText.Length));
-		public float Execute(Calculator parentCalculator, float? firstInput)
+		public static float CalculateHypotenuse(float A, float B)
 		{
-			UserInterface.Instance!.AsciiView = MakeAsciiArt(null, null); 
+			return MathF.Sqrt(MathF.Pow(A, 2) + MathF.Pow(B, 2));
+		}
+
+		private static string GetString(string A = "__", string B = "__", string C = "__") => $@"
+	{AddSpacing(C)}       /|
+	{AddSpacing(C)}      / |
+	{AddSpacing(C)}     /  |
+	{C}    /   | {A}
+	{AddSpacing(C)}   /    |
+	{AddSpacing(C)}  /     |
+	{AddSpacing(C)} /      |
+	{AddSpacing(C)}/_______|
+	  {AddSpacing(C)}{B}
+	
+";
+		internal static string AddSpacing(string resultText) => string.Join("", Enumerable.Repeat(' ', resultText.Length));
+		internal static float? GetFirstInput() => Calculator.CalculatorInstance?.Memory.Value;
+		public static object? CalcA()
+		{
+			UserInterface.Instance!.AsciiView = GetString();
 			UserInterface.Instance.Reprint();
-			float A = firstInput ?? IOperation.DefineValueByUser();
-			UserInterface.Instance!.AsciiView = MakeAsciiArt(A, null); 
+			float C = GetFirstInput() ?? IOperation.DefineValueByUser();
+			UserInterface.Instance!.AsciiView = GetString(C: C.ToString());
 			UserInterface.Instance.Reprint();
 			float B = IOperation.DefineValueByUser();
-			UserInterface.Instance!.AsciiView = 
-				$"√({A}^2 + {B}^2)=√({A * A} + {B * B})=√({(A * A) + (B * B)})={CalculateHypotenuse(A, B)}\n" + 
-				MakeAsciiArt(A, B); 
+			float A = MathF.Sqrt((C * C) - (B * B));
+			UserInterface.Instance!.AsciiView =
+				$"√({C}^2 - {B}^2)=√({C * C} - {B * B})=√({(C * C) - (B * B)})={A}\n" +
+				GetString(A.ToString(), B.ToString(), C.ToString());
 			UserInterface.Instance.Reprint();
-			return CalculateHypotenuse(A, B);
+			return A;
+		}
+
+		public static object? CalcB()
+		{
+			UserInterface.Instance!.AsciiView = GetString();
+			UserInterface.Instance.Reprint();
+			float C = GetFirstInput() ?? IOperation.DefineValueByUser();
+			UserInterface.Instance!.AsciiView = GetString(C: C.ToString());
+			UserInterface.Instance.Reprint();
+			float A = IOperation.DefineValueByUser();
+			float B = MathF.Sqrt((C * C) - (A * A));
+			UserInterface.Instance!.AsciiView =
+				$"√({C}^2 - {A}^2)=√({C * C} - {A * A})=√({(C * C) - (A * A)})={B}\n" +
+				GetString(A.ToString(), B.ToString(), C.ToString());
+			UserInterface.Instance.Reprint();
+			return B;
+		}
+		public static object? CalcHypo()
+		{
+			UserInterface.Instance!.AsciiView = GetString();
+			UserInterface.Instance.Reprint();
+			float A = GetFirstInput() ?? IOperation.DefineValueByUser();
+			UserInterface.Instance!.AsciiView = GetString(A.ToString());
+			UserInterface.Instance.Reprint();
+			float B = IOperation.DefineValueByUser();
+			float C = CalculateHypotenuse(A, B);
+			UserInterface.Instance!.AsciiView =
+				$"√({A}^2 + {B}^2)=√({A * A} + {B * B})=√({(A * A) + (B * B)})={C}\n" +
+				GetString(A.ToString(), B.ToString(), C.ToString());
+			UserInterface.Instance.Reprint();
+			return C;
 		}
 	}
+	#endregion
 }
 
 // Pulled out of this from an external library, used for the operators
