@@ -1,6 +1,6 @@
-﻿// Week 5 - Calculator Assignment
+﻿// Week 6 - Calculator Assignment
 // Name: AnOddDoorKnight
-// Submission Date: 20-Apr-2025
+// Submission Date: 05-May-2025
 // Description: A simple console calculator supporting basic operations and memory
 
 namespace OVS.SimpleCollegeCalculator
@@ -12,6 +12,7 @@ namespace OVS.SimpleCollegeCalculator
 	using System.Collections.Generic;
 	using System.Linq;
 	using System.Text;
+	using System.Threading;
 
 	/// <summary>
 	/// Main interface, structured like a singleton and treated as such so keep
@@ -25,13 +26,7 @@ namespace OVS.SimpleCollegeCalculator
 		{
 			Console.Title = "AnOddDoorkKnight's OVSCalculator";
 			CalculatorInstance = new Calculator();
-			Exception? ex = CalculatorInstance.Run();
-			if (ex != null)
-			{
-				Console.Clear();
-				Console.WriteLine($"An Error has occured:\n{ex}");
-				Console.ReadKey();
-			}
+			((IInteractible)CalculatorInstance.MainMenu).Invoke();
 		}
 
 		/* --------------------------------------------------------------- */
@@ -68,31 +63,12 @@ namespace OVS.SimpleCollegeCalculator
 						new BackInteract(),
 					]},
 					IInteractible.ToIInteractible(new ResetMemory()),
-					IInteractible.ToIInteractible(new Quit()),
+					new Quit(),
 				],
+				ShowAsSubmenu = false,
 			};
 			UserInterface = new();
 			Memory = new();
-		}
-
-		public Exception? Run()
-		{
-			try
-			{
-				while (true) // it will be broken by environment exit
-				{
-					MainMenu.EnterWithoutAnnouncing();
-				}
-			}
-			// Messy, but works
-			catch (Exception ex) when (ex.Message == Quit.QUIT_KEY)
-			{
-				return null;
-			}
-			catch (Exception ex)
-			{
-				return ex;
-			}
 		}
 	}
 
@@ -267,31 +243,21 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	public class Submenu(string Name) : IInteractible
 	{
 		string IInteractible.Name => Name;
-		public bool Repeat { get; } = true;
+		public bool Repeat { get; set; } = true;
+		public bool ShowAsSubmenu { get; set; } = true;
 		public IReadOnlyList<IInteractible> interactibles = [];
 		/// <summary>
 		/// Similar to <see cref="Enter"/>, but stores its submenu as a 
 		/// <see cref="UserInterface.Conditions"/> for user clarity
 		/// </summary>
-		public void Enter()
+		public ReturnType Enter()
 		{
 			int hash = Random.Shared.Next(int.MinValue, int.MaxValue);
-			UserInterface.Instance!.Conditions.Add(hash, $"Submenu: {Name}");
-			EnterWithoutAnnouncing();
-			UserInterface.Instance!.Conditions.Remove(hash);
-		}
-		// for main loop specific interaction.
-		object? IInteractible.Invoke()
-		{
-			Enter();
-			return null;
-		}
-		/// <summary>
-		/// Prints the list to <see cref="UserInterface.AsciiView"/>, and tries
-		/// to invoke the contained commands. Ends after it has finished.
-		/// </summary>
-		public void EnterWithoutAnnouncing()
-		{
+			if (ShowAsSubmenu)
+			{
+				UserInterface.Instance!.Conditions.Add(hash, $"Submenu: {Name}");
+			}
+
 			Range<int> range = interactibles.GetRangeFromCollection();
 			UserInterface.Instance!.AsciiView = ToInteractiblesString();
 			UserInterface.Instance!.Reprint();
@@ -305,8 +271,33 @@ namespace OVS.SimpleCollegeCalculator.Menus
 			{
 				float savedFloat = (float)@out!;
 				if (!float.IsNaN(savedFloat))
+				{
 					Calculator.CalculatorInstance!.Memory.CheckUserForInterfaceInteraction(savedFloat);
+				}
 			}
+			ReturnType @return = type == typeof(ReturnType) ? (ReturnType)@out! : ReturnType.Continue;
+
+			if (ShowAsSubmenu)
+			{
+				UserInterface.Instance!.Conditions.Remove(hash);
+			}
+
+			return @return;
+		}
+		// for main loop specific interaction.
+		object? IInteractible.Invoke()
+		{
+			bool loop = Repeat;
+			bool exit = false;
+			do
+			{
+				ReturnType type = Enter();
+				if (type > 0)
+					loop = false;
+				if (type == ReturnType.Exit)
+					exit = true;
+			} while (loop);
+			return exit ? ReturnType.Exit : null;
 		}
 
 		/// <summary>
@@ -332,7 +323,7 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	{
 		public string Name => "Back";
 
-		public object? Invoke() => null;
+		public object? Invoke() => ReturnType.Back;
 	}
 
 	/// <summary>
@@ -360,7 +351,7 @@ namespace OVS.SimpleCollegeCalculator.Menus
 		public static IInteractible ToIInteractible(IOperation operation)
 			=> new FlexibleInteractible(operation);
 		public static IInteractible ToIInteractible(string name, Func<object?> operation)
-			=> new FlexibleInteractible(name, operation);
+			=> new FlexibleInteractible(name, operation) { };
 		object? Invoke();
 		string Name { get; }
 	}
@@ -370,8 +361,9 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	/// </summary>
 	public enum ReturnType : byte
 	{
-		Continue,
-		Operation
+		Continue = 0,
+		Back = 1,
+		Exit = 2,
 	}
 }
 
@@ -516,13 +508,10 @@ namespace OVS.SimpleCollegeCalculator.Operators
 	/// Quits the program via <see cref="Environment.Exit(int)"/>. Throws a exception
 	/// if it fails.
 	/// </summary>
-	public sealed class Quit : IOperation
+	public sealed class Quit : IInteractible
 	{
-		public const string QUIT_KEY = "Environment Exited.";
-		public float Execute(Calculator parentCalculator, float? firstInput)
-		{
-			throw new Exception(QUIT_KEY);
-		}
+		public string Name => "Quit";
+		public object? Invoke() => ReturnType.Exit;
 	}
 
 	/// <summary>
@@ -730,7 +719,9 @@ namespace OVS.SimpleCollegeCalculator.Operators
 				IInteractible.ToIInteractible("Calculate Side A", CalcA),
 				IInteractible.ToIInteractible("Calculate Side B", CalcB),
 			];
+			Repeat = false;
 		}
+
 
 		public static float CalculateHypotenuse(float A, float B)
 		{
