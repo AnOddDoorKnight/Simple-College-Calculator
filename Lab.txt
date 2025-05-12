@@ -1,0 +1,59 @@
+﻿namespace Lab6_2
+{
+	using System;
+
+	internal class Program
+	{
+		static void Main(string[] args)
+		{
+			Console.Write("Menu:\n1) New\n2) Load\n3) Quit\nSelection: ");
+			int.TryParse(Console.ReadKey().KeyChar.ToString(), out int choice);
+
+			switch (choice)
+			{
+				case '9':
+					Console.WriteLine("Super secret cheat enabled.\nPress any key to continue.");
+					Console.ReadLine();
+					break;
+				case '1':
+					Console.WriteLine("New game started.");
+					Console.ReadKey();
+					break;
+				case '2':
+					Console.WriteLine("Game loaded.");
+					Console.ReadKey();
+					break;
+				default:
+					Console.WriteLine("Invalid choice. Try again.");
+					break;
+				case '3':
+					Console.WriteLine("Exiting.");
+					Console.ReadKey();
+					break;
+			}
+			Console.Clear();
+
+			int lower = 1;
+			int upper = 20;
+			Random rng = new Random(DateTime.UtcNow.Nanosecond);
+			int guessMe = rng.Next(lower, upper);
+
+			Console.WriteLine($"Pick a number between {lower} and {upper}: ");
+			int.TryParse(Console.ReadLine(), out int answer);
+
+			if (answer <= guessMe)
+			{
+				Console.WriteLine("higher");
+			}
+			else if (answer >= guessMe)
+			{
+				Console.WriteLine("lower");
+			}
+			else
+			{
+				Console.WriteLine("just right.");
+			}
+
+		}
+	}
+}
