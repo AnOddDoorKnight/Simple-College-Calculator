@@ -28,7 +28,7 @@ namespace OVS.SimpleCollegeCalculator
 			CalculatorInstance = new Calculator();
 			try
 			{
-				CalculatorInstance.MainMenu.Enter();
+				((IInteractible)CalculatorInstance.MainMenu).Invoke();
 			}
 			catch (Exception ex)
 			{
@@ -75,6 +75,7 @@ namespace OVS.SimpleCollegeCalculator
 					new Quit(),
 				],
 				ShowAsSubmenu = false,
+				Repeat = true,
 			};
 			UserInterface = new();
 			Memory = new();
@@ -299,15 +300,26 @@ namespace OVS.SimpleCollegeCalculator.Menus
 		{
 			bool loop = Repeat;
 			bool exit = false;
+			ReturnType type;
 			do
 			{
-				ReturnType type = Enter();
-				if (type > 0)
-					loop = false;
-				if (type == ReturnType.Exit)
-					exit = true;
+				type = Enter();
+				switch (type)
+				{
+					default:
+					case ReturnType.Continue:
+						break;
+					case ReturnType.Back:
+						loop = false;
+						break;
+					case ReturnType.Exit:
+						loop = false;
+						exit = true;
+						break;
+
+				}
 			} while (loop);
-			return exit ? ReturnType.Exit : null;
+			return exit ? ReturnType.Exit : ReturnType.Continue;
 		}
 
 		/// <summary>
@@ -333,7 +345,10 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	{
 		public string Name => "Back";
 
-		public object? Invoke() => ReturnType.Back;
+		public object? Invoke()
+		{
+			return ReturnType.Back;
+		}
 	}
 
 	/// <summary>
@@ -363,6 +378,9 @@ namespace OVS.SimpleCollegeCalculator.Menus
 		public static IInteractible ToIInteractible(string name, Func<object?> operation)
 			=> new FlexibleInteractible(name, operation) { };
 		object? Invoke();
+		/// <summary>
+		/// Display name for the user to see
+		/// </summary>
 		string Name { get; }
 	}
 	/// <summary>
@@ -371,8 +389,17 @@ namespace OVS.SimpleCollegeCalculator.Menus
 	/// </summary>
 	public enum ReturnType : byte
 	{
+		/// <summary>
+		/// Do stuff as usual.
+		/// </summary>
 		Continue = 0,
+		/// <summary>
+		/// Go back a menu.
+		/// </summary>
 		Back = 1,
+		/// <summary>
+		/// Exit the program.
+		/// </summary>
 		Exit = 2,
 	}
 }
@@ -417,6 +444,25 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		/// <param name="firstInput">Memory, <see langword="null"/> if none is stored.</param>
 		/// <returns>The ruturn variable from the operation.</returns>
 		float Execute(Calculator parentCalculator, float? firstInput);
+	}
+
+
+	/// <summary>
+	/// Resets memory in the menu as an operation
+	/// </summary>
+	public sealed class ResetMemory : IOperation
+	{
+		string IOperation.Name => "Reset Memory";
+		public float Execute(Calculator parentCalculator, float? firstInput)
+		{
+			if (parentCalculator.Memory.Value == null)
+			{
+				return float.NaN;
+			}
+			parentCalculator.Memory.Value = null;
+			UserInterface.Instance!.Conditions.Remove(typeof(Memory).Name.GetHashCode());
+			return float.NaN;
+		}
 	}
 
 	#region Basic
@@ -497,23 +543,6 @@ namespace OVS.SimpleCollegeCalculator.Operators
 			UserInterface.Instance!.AsciiView = MakeAsciiArt(MultLeft, MultRight);
 			UserInterface.Instance.Reprint();
 			return MultLeft * MultRight;
-		}
-	}
-	/// <summary>
-	/// Resets memory in the menu as an operation
-	/// </summary>
-	public sealed class ResetMemory : IOperation
-	{
-		string IOperation.Name => "Reset Memory";
-		public float Execute(Calculator parentCalculator, float? firstInput)
-		{
-			if (parentCalculator.Memory.Value == null)
-			{
-				return float.NaN;
-			}
-			parentCalculator.Memory.Value = null;
-			UserInterface.Instance!.Conditions.Remove(typeof(Memory).Name.GetHashCode());
-			return float.NaN;
 		}
 	}
 	/// <summary>
@@ -835,8 +864,6 @@ namespace OVS.SimpleCollegeCalculator.Operators
 		}
 	}
 	#endregion
-
-	
 }
 
 // Pulled out of this from an external library, used for the operators.
